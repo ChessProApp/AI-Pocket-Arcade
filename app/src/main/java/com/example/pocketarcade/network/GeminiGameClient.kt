@@ -12,46 +12,18 @@ import java.util.concurrent.TimeUnit
 
 class GeminiGameClient {
 
-    // 0 = Kein Timeout (wartet so lange, bis die KI fertig ist)
     private val client = OkHttpClient.Builder()
-        .connectTimeout(0, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.SECONDS)
-        .writeTimeout(0, TimeUnit.SECONDS)
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
-
-    // Sucht automatisch das beste verfügbare Flash-Modell für deinen API-Key
-    private fun findBestAvailableModel(cleanKey: String): String {
-        return try {
-            val listUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=$cleanKey"
-            val request = Request.Builder().url(listUrl).get().build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return "models/gemini-3.8-flash"
-                val json = JSONObject(response.body?.string().orEmpty())
-                val models = json.optJSONArray("models") ?: return "models/gemini-3.8-flash"
-
-                val validFlashModels = mutableListOf<String>()
-                for (i in 0 until models.length()) {
-                    val m = models.getJSONObject(i)
-                    val name = m.optString("name") // z.B. "models/gemini-3.8-flash"
-                    val methods = m.optJSONArray("supportedGenerationMethods")?.toString().orEmpty()
-                    if (methods.contains("generateContent") && name.contains("flash", ignoreCase = true) && !name.contains("8b")) {
-                        validFlashModels.add(name)
-                    }
-                }
-                // Bevorzugt das neueste/höchste Modell (z.B. 3.8 oder 2.5)
-                validFlashModels.maxOrNull() ?: "models/gemini-3.8-flash"
-            }
-        } catch (_: Exception) {
-            "models/gemini-3.8-flash"
-        }
-    }
 
     suspend fun generateHtmlGame(apiKey: String, userPrompt: String): Result<String> =
         withContext(Dispatchers.IO) {
             try {
                 val cleanKey = apiKey.trim()
-                val modelName = findBestAvailableModel(cleanKey)
-                val url = "https://generativelanguage.googleapis.com/v1beta/$modelName:generateContent?key=$cleanKey"
+                // Nutzen fix das stabile gemini-1.5-flash, das am zuverlässigsten läuft
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$cleanKey"
 
                 val systemPrompt = """
                     Du bist ein Experte für HTML5-Canvas-Arcade-Minigames.
@@ -76,7 +48,7 @@ class GeminiGameClient {
                         put("parts", JSONArray().put(JSONObject().put("text", "Erstelle dieses Arcade-Spiel: $userPrompt")))
                     }))
                     put("generationConfig", JSONObject().apply {
-                        put("temperature", 0.95)
+                        put("temperature", 0.9)
                         put("maxOutputTokens", 8192)
                     })
                 }
@@ -95,7 +67,7 @@ class GeminiGameClient {
                         } catch (_: Exception) {
                             null
                         } ?: "HTTP ${response.code}"
-                        return@withContext Result.failure(Exception("Gemini API Fehler ($modelName): $errorMsg"))
+                        return@withContext Result.failure(Exception("Gemini API Fehler: $errorMsg"))
                     }
 
                     val json = JSONObject(responseBody)
