@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="oled_black">#000000</color>
+    <color name="neon_cyan">#00F5D4</color>
+    <color name="neon_magenta">#FF007F</color>
+</resources>
